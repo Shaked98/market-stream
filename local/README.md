@@ -2,7 +2,7 @@
 
 The **primary verification path**. One `docker compose` stack runs the whole pipeline with
 zero cloud cost: Redpanda + Schema Registry, MinIO, Lakekeeper, Trino, the producer (pulling
-**real** live Binance ticks), the Spark streaming job, and the read-only web API.
+**real** live Yahoo Finance quotes), the Spark streaming job, and the read-only web API.
 
 ## Run it
 
@@ -14,7 +14,7 @@ make local-logs               # watch the producer + spark-job
 
 | Service | URL | Notes |
 |---------|-----|-------|
-| Redpanda Console | http://localhost:8085 | watch `market.trades` fill with live ticks |
+| Redpanda Console | http://localhost:8085 | watch `market.quotes` fill with live quotes |
 | MinIO Console | http://localhost:9001 | `minioadmin` / `minioadmin`; data under `lakehouse/` |
 | Lakekeeper UI | http://localhost:8181/ui | the Iceberg REST catalog |
 | Trino | http://localhost:8080 | catalog `iceberg` |
@@ -24,7 +24,7 @@ Confirm data is landing in Iceberg:
 
 ```bash
 docker exec -it market-stream-trino-1 trino --catalog iceberg --execute \
-  "SELECT count(*) FROM market.trades_raw"
+  "SELECT count(*) FROM market.quotes_raw"
 docker exec -it market-stream-trino-1 trino --catalog iceberg --execute \
   "SELECT symbol, window_start, open, high, low, close, vwap, trade_count \
    FROM market.ohlcv_1m ORDER BY window_start DESC LIMIT 10"

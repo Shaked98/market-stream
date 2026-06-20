@@ -1,8 +1,8 @@
-"""Map raw Binance trade events to the `Trade` Avro record and serialize them via the
+"""Map raw Yahoo quotes to the `Quote` Avro record and serialize them via the
 Confluent-compatible Schema Registry.
 
-`to_trade_record` is a pure function (no I/O) so it is unit-testable without a broker or
-registry. `TradeSerializer` wraps the registry-backed Avro encoder + the key encoder.
+`to_quote_record` is a pure function (no I/O) so it is unit-testable without a broker or
+registry. `QuoteSerializer` wraps the registry-backed Avro encoder + the key encoder.
 """
 
 from __future__ import annotations
@@ -25,26 +25,24 @@ def _to_dt(ms: int | str) -> datetime:
     return datetime.fromtimestamp(int(ms) / 1000.0, tz=timezone.utc)
 
 
-def to_trade_record(raw: dict, source: str = "binance") -> dict:
-    """Normalise a raw Binance `@trade` event into a `Trade` record dict.
+def to_quote_record(raw: dict, source: str = "yahoo") -> dict:
+    """Normalise a raw poller quote into a `Quote` record dict.
 
-    Binance field map: s=symbol, t=trade id, p=price, q=qty, m=buyer-is-maker,
-    T=trade time, E=event time.
+    Raw shape: {symbol, price, volume (increment), day_volume, quote_time_ms}.
     """
+    quote_time = _to_dt(raw["quote_time_ms"])
     return {
-        "symbol": raw["s"],
-        "trade_id": int(raw["t"]),
-        "price": str(raw["p"]),       # keep exact exchange precision; Spark casts to decimal
-        "quantity": str(raw["q"]),
-        "is_buyer_maker": bool(raw["m"]),
-        "trade_time": _to_dt(raw["T"]),
-        "event_time": _to_dt(raw["E"]),
-        "ingest_time": datetime.now(tz=timezone.utc),
+        "symbol": raw["symbol"],
+        "price": str(raw["price"]),        # keep exact precision as string; Spark casts to decimal
+        "volume": str(raw["volume"]),
+        "day_volume": int(raw["day_volume"]),
+        "quote_time": quote_time,
+        "ingest_time": quote_time,
         "source": source,
     }
 
 
-class TradeSerializer:
+class QuoteSerializer:
     """Avro value serializer (Confluent wire format) + string key serializer."""
 
     def __init__(self, schema_registry_url: str, schema_path: str, topic: str) -> None:

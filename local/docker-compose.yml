@@ -1,6 +1,6 @@
 # market-stream — full local pipeline on a laptop, zero cloud cost. Mirrors
 # LakeHouse/local/docker-compose.yml (MinIO + Lakekeeper + Trino) and adds Redpanda +
-# Schema Registry, the producer (real live Binance ticks), the Spark streaming job, and
+# Schema Registry, the producer (real live Yahoo Finance quotes), the Spark streaming job, and
 # the read-only web API. Run from the repo root:  make local-up
 #
 # Convenience image tags (minio/mc/trino) float at :latest for the local PoC; the cluster
@@ -164,19 +164,19 @@ services:
       redpanda:
         condition: service_healthy
 
-  # Create the trades topic up front (3 partitions; keyed by symbol preserves order).
+  # Create the quotes topic up front (3 partitions; keyed by symbol preserves order).
   topic-init:
     image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
     entrypoint:
       - /bin/sh
       - -c
-      - "rpk topic create market.trades -p 3 -r 1 --brokers redpanda:9092 || true"
+      - "rpk topic create market.quotes -p 3 -r 1 --brokers redpanda:9092 || true"
     depends_on:
       redpanda:
         condition: service_healthy
     restart: on-failure
 
-  # ── Producer: live Binance ticks → Redpanda ────────────────────────────────────
+  # ── Producer: live Yahoo Finance stock quotes → Redpanda ───────────────────────
   producer:
     build:
       context: ..
@@ -184,10 +184,9 @@ services:
     environment:
       KAFKA_BOOTSTRAP: redpanda:9092
       SCHEMA_REGISTRY_URL: http://redpanda:8081
-      TOPIC_TRADES: market.trades
-      SYMBOLS: BTCUSDT,ETHUSDT,SOLUSDT
-      WS_URL: wss://stream.binance.com:9443/stream
-      SOURCE: binance
+      TOPIC_QUOTES: market.quotes
+      SYMBOLS: AAPL,GOOG,MSFT
+      SOURCE: yahoo
     depends_on:
       redpanda:
         condition: service_healthy
@@ -202,9 +201,9 @@ services:
       dockerfile: streaming/Dockerfile
     environment:
       KAFKA_BOOTSTRAP: redpanda:9092
-      TOPIC_TRADES: market.trades
+      TOPIC_QUOTES: market.quotes
       ICEBERG_CATALOG: lake
-      TRADES_TABLE: lake.market.trades_raw
+      QUOTES_TABLE: lake.market.quotes_raw
       OHLCV_TABLE: lake.market.ohlcv_1m
       WINDOW_DURATION: "1 minute"
       WATERMARK_DELAY: "2 minutes"
@@ -216,6 +215,9 @@ services:
     command:
       - /opt/spark/bin/spark-submit
       - --master=local[2]
+      - --driver-memory=2g
+      # Tiny local dataset → keep the shuffle small (the 200 default OOMs a small heap).
+      - --conf=spark.sql.shuffle.partitions=4
       - --conf=spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
       - --conf=spark.sql.catalog.lake=org.apache.iceberg.spark.SparkCatalog
       - --conf=spark.sql.catalog.lake.type=rest
@@ -255,6 +257,7 @@ services:
       TRINO_PORT: "8080"
       TRINO_USER: market-stream-web
       TRINO_CATALOG: iceberg
+      SYMBOLS: AAPL,GOOG,MSFT
       CORS_ALLOW_ORIGIN: "http://localhost:8001"
       API_RATE_LIMIT: 60/minute
     depends_on:

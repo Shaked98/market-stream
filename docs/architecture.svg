@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 360" font-family="Segoe UI, Roboto, system-ui, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#58a6ff"/>
+    </marker>
+    <style>
+      .bg    { fill:#0d1117; }
+      .box   { fill:#161b22; stroke:#283041; stroke-width:1.5; rx:10; }
+      .lake  { fill:#11261a; stroke:#3fb950; stroke-width:1.5; rx:10; }
+      .title { fill:#e6edf3; font-size:15px; font-weight:600; }
+      .sub   { fill:#8b949e; font-size:11px; }
+      .h1    { fill:#e6edf3; font-size:18px; font-weight:700; }
+      .flow  { stroke:#58a6ff; stroke-width:2; fill:none; marker-end:url(#arrow); }
+      .lbl   { fill:#8b949e; font-size:10.5px; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1100" height="360"/>
+  <text class="h1" x="20" y="32">market-stream — event-driven market data pipeline</text>
+  <text class="sub" x="20" y="52">live stock feed → Kafka → Spark Structured Streaming → Apache Iceberg → Trino &amp; a live web demo</text>
+
+  <!-- main pipeline row (y 80–170) -->
+  <g>
+    <rect class="box" x="20"  y="80" width="160" height="90" rx="10"/>
+    <text class="title" x="100" y="120" text-anchor="middle">Yahoo Finance</text>
+    <text class="sub"   x="100" y="140" text-anchor="middle">polled · keyless</text>
+
+    <rect class="box" x="220" y="80" width="160" height="90" rx="10"/>
+    <text class="title" x="300" y="120" text-anchor="middle">Producer</text>
+    <text class="sub"   x="300" y="140" text-anchor="middle">Python · poll + backoff</text>
+
+    <rect class="box" x="420" y="80" width="160" height="90" rx="10"/>
+    <text class="title" x="500" y="118" text-anchor="middle">Redpanda</text>
+    <text class="sub"   x="500" y="137" text-anchor="middle">Kafka API +</text>
+    <text class="sub"   x="500" y="151" text-anchor="middle">Schema Registry</text>
+
+    <rect class="box" x="620" y="80" width="160" height="90" rx="10"/>
+    <text class="title" x="700" y="118" text-anchor="middle">Spark</text>
+    <text class="sub"   x="700" y="137" text-anchor="middle">Structured Streaming</text>
+    <text class="sub"   x="700" y="151" text-anchor="middle">1-min OHLCV / VWAP</text>
+
+    <rect class="lake" x="820" y="80" width="160" height="90" rx="10"/>
+    <text class="title" x="900" y="118" text-anchor="middle">Apache Iceberg</text>
+    <text class="sub"   x="900" y="137" text-anchor="middle">Lakekeeper REST</text>
+    <text class="sub"   x="900" y="151" text-anchor="middle">+ S3 warehouse</text>
+  </g>
+
+  <!-- consumers -->
+  <rect class="box" x="620" y="250" width="160" height="80" rx="10"/>
+  <text class="title" x="700" y="285" text-anchor="middle">Trino + Superset</text>
+  <text class="sub"   x="700" y="305" text-anchor="middle">query the lakehouse</text>
+
+  <rect class="box" x="820" y="250" width="160" height="80" rx="10"/>
+  <text class="title" x="900" y="280" text-anchor="middle">Web demo</text>
+  <text class="sub"   x="900" y="298" text-anchor="middle">FastAPI (read-only) +</text>
+  <text class="sub"   x="900" y="312" text-anchor="middle">Cloudflare Pages</text>
+
+  <!-- flows -->
+  <path class="flow" d="M180,125 H218"/>
+  <path class="flow" d="M380,125 H418"/>
+  <path class="flow" d="M580,125 H618"/>
+  <path class="flow" d="M780,125 H818"/>
+  <text class="lbl" x="399" y="116" text-anchor="middle">Avro</text>
+  <text class="lbl" x="599" y="116" text-anchor="middle">subscribe</text>
+  <text class="lbl" x="779" y="116" text-anchor="middle">append + MERGE</text>
+
+  <!-- Iceberg → Trino, Iceberg → Web -->
+  <path class="flow" d="M880,170 V210 H700 V248"/>
+  <path class="flow" d="M900,170 V248"/>
+  <text class="lbl" x="912" y="210">read API</text>
+</svg>

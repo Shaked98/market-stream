@@ -5,5 +5,5 @@ import fastavro
 
 
 def test_avro_schemas_parse():
-    for path in ("schemas/trade.avsc", "schemas/ohlcv.avsc"):
+    for path in ("schemas/quote.avsc", "schemas/ohlcv.avsc"):
         assert fastavro.schema.load_schema(path), f"{path} failed to parse"

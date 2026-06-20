@@ -9,7 +9,7 @@ as a stream, and lands it in the shared Apache Iceberg lakehouse.
 ```mermaid
 flowchart TB
   subgraph ext[External]
-    BIN["Binance<br/>@trade WebSocket"]
+    BIN["Yahoo Finance<br/>chart endpoint (polled)"]
     CF["Cloudflare Pages<br/>(static frontend)"]
   end
 
@@ -32,9 +32,9 @@ flowchart TB
 
   S3[("Hetzner Object Storage<br/>spark-k8s-lakehouse")]
 
-  BIN -->|live ticks| PROD -->|Avro| RP
+  BIN -->|polled quotes| PROD -->|Avro| RP
   RP -->|subscribe| SPARK
-  SPARK -->|append trades_raw| LK
+  SPARK -->|append quotes_raw| LK
   SPARK -->|MERGE ohlcv_1m| LK
   SPARK -->|OAuth2| KC
   SPARK -->|Parquet + checkpoint| S3
@@ -45,7 +45,7 @@ flowchart TB
   CF -->|HTTPS, CORS| LB --> API
 ```
 
-Two streaming queries share the Kafka topic: a stateless append (`trades_raw`, exactly-once
+Two streaming queries share the Kafka topic: a stateless append (`quotes_raw`, exactly-once
 via Kafka offsets in the checkpoint + Iceberg's atomic commits) and a stateful, watermarked
 1-minute aggregation (`ohlcv_1m`, idempotent upsert via Iceberg `MERGE` on
 `(symbol, window_start)`).

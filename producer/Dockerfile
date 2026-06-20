@@ -4,7 +4,7 @@ FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    SCHEMA_PATH=/app/schemas/trade.avsc
+    SCHEMA_PATH=/app/schemas/quote.avsc
 
 WORKDIR /app
 

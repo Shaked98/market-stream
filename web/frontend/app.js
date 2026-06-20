@@ -22,7 +22,7 @@
     ohlcvBody: document.querySelector("#ohlcv tbody"),
   };
 
-  let symbol = (cfg.SYMBOLS && cfg.SYMBOLS[0]) || "BTCUSDT";
+  let symbol = (cfg.SYMBOLS && cfg.SYMBOLS[0]) || "AAPL";
   let mode = "sample"; // "sample" | "live"
   let sample = null;
   let sampleTimer = null;
@@ -60,11 +60,14 @@
   }
 
   function renderTape(ticks) {
-    el.tape.innerHTML = (ticks || [])
-      .slice(0, 40)
-      .map((t) => {
-        const side = t.is_buyer_maker ? "down" : "up";
-        return `<li><span class="px ${side}">${fmt(t.price)}</span><span class="qty">${fmt(t.quantity, 4)}</span></li>`;
+    const rows = (ticks || []).slice(0, 40);
+    el.tape.innerHTML = rows
+      .map((t, i) => {
+        // Stocks have no maker/taker side, so colour by price direction: a tick is "up"
+        // if its price is >= the next (older) tick's price.
+        const prev = rows[i + 1];
+        const side = !prev || Number(t.price) >= Number(prev.price) ? "up" : "down";
+        return `<li><span class="px ${side}">${fmt(t.price)}</span><span class="qty">${fmt(t.quantity, 0)}</span></li>`;
       })
       .join("");
   }

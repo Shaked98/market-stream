@@ -8,7 +8,7 @@
 //                              is still fully alive with zero backend.
 window.MARKET_STREAM_CONFIG = {
   API_BASE_URL: "http://localhost:8000",
-  SYMBOLS: ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+  SYMBOLS: ["AAPL", "GOOG", "MSFT"],
   HEALTH_TIMEOUT_MS: 1500, // how long to wait for the live probe before staying on sample
   OHLCV_POLL_MS: 5000,
   TICK_POLL_MS: 2000,

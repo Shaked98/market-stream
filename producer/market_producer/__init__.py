@@ -1,6 +1,7 @@
-"""market_producer — Binance WebSocket → Redpanda (Avro) market-data producer.
+"""market_producer — Yahoo Finance quotes → Redpanda (Avro) market-data producer.
 
-Resilient (reconnect with backoff, backpressure-aware), schema-validated, idempotent.
+Polls a free, keyless stock feed; resilient (backoff on fetch failure, backpressure-aware),
+schema-validated, idempotent.
 """
 
 __version__ = "0.1.0"

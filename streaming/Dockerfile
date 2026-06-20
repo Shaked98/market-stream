@@ -40,4 +40,4 @@ RUN chmod -R 0755 /opt/spark/jobs
 
 # Back to the unprivileged Spark user (uid 185 in the official image).
 USER 185
-ENV SCHEMA_PATH=/opt/spark/jobs/schemas/trade.avsc
+ENV SCHEMA_PATH=/opt/spark/jobs/schemas/quote.avsc

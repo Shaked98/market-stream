@@ -24,7 +24,7 @@ import trino_client
 
 SYMBOLS = [
     s.strip().upper()
-    for s in os.environ.get("SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT").split(",")
+    for s in os.environ.get("SYMBOLS", "AAPL,GOOG,MSFT").split(",")
     if s.strip()
 ]
 CORS_ALLOW_ORIGIN = os.environ.get("CORS_ALLOW_ORIGIN", "http://localhost:8001")
@@ -94,7 +94,7 @@ def symbols(request: Request):
 @limiter.limit(RATE_LIMIT)
 def ohlcv(
     request: Request,
-    symbol: str = Query("BTCUSDT"),
+    symbol: str = Query("AAPL"),
     limit: int = Query(120, ge=1, le=MAX_LIMIT),
 ):
     sym = _validate_symbol(symbol)
@@ -130,7 +130,7 @@ def ohlcv(
 @limiter.limit(RATE_LIMIT)
 def ticks(
     request: Request,
-    symbol: str = Query("BTCUSDT"),
+    symbol: str = Query("AAPL"),
     limit: int = Query(40, ge=1, le=MAX_LIMIT),
 ):
     sym = _validate_symbol(symbol)
@@ -138,13 +138,13 @@ def ticks(
     def run():
         return trino_client.query(
             f"""
-            SELECT symbol, trade_id,
-                   CAST(price AS double) AS price, CAST(quantity AS double) AS quantity,
-                   is_buyer_maker,
-                   to_unixtime(trade_time) * 1000 AS trade_time_ms
-            FROM market.trades_raw
+            SELECT symbol,
+                   CAST(price AS double) AS price,
+                   CAST(volume AS double) AS quantity,
+                   to_unixtime(quote_time) * 1000 AS trade_time_ms
+            FROM market.quotes_raw
             WHERE symbol = ?
-            ORDER BY trade_time DESC
+            ORDER BY quote_time DESC
             LIMIT {int(limit)}
             """,
             [sym],

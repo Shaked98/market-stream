@@ -36,6 +36,6 @@ tests/smoke-test.sh
 # Against the cluster (point at port-forwarded / exposed endpoints):
 TRINO_HOST=... TRINO_PORT=... KAFKA_BOOTSTRAP=... SCHEMA_REGISTRY_URL=... tests/smoke-test.sh
 ```
-It publishes to a distinct symbol (`TESTUSDT`) so the assertions don't race the live Binance
-feed, then polls Trino until `trades_raw` has ≥ N rows and `ohlcv_1m` has ≥ 1 window. Requires
+It publishes to a distinct symbol (`TEST`) so the assertions don't race the live Yahoo
+feed, then polls Trino until `quotes_raw` has ≥ N rows and `ohlcv_1m` has ≥ 1 window. Requires
 the producer deps + the `trino` client (both in `requirements-dev.txt`).

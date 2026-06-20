@@ -1,19 +1,19 @@
-"""Entrypoint: stream Binance trades → Redpanda. `python -m market_producer`.
+"""Entrypoint: poll Yahoo Finance quotes → Redpanda. `python -m market_producer`.
 
-Graceful SIGTERM/SIGINT: stop the WS loop and flush buffered messages so a Kubernetes
-rolling restart doesn't lose in-flight ticks.
+Graceful SIGTERM/SIGINT: stop the poll loop and flush buffered messages so a Kubernetes
+rolling restart doesn't lose in-flight quotes.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import signal
+import threading
 
 from .config import Settings
-from .publisher import TradePublisher
-from .serializer import TradeSerializer, to_trade_record
-from .ws_client import stream_trades
+from .poller import iter_quotes
+from .publisher import QuotePublisher
+from .serializer import QuoteSerializer, to_quote_record
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
@@ -21,41 +21,35 @@ logging.basicConfig(
 log = logging.getLogger("market_producer")
 
 
-async def run() -> None:
+def main() -> None:
     settings = Settings()
-    serializer = TradeSerializer(
-        settings.schema_registry_url, settings.schema_path, settings.topic_trades
+    serializer = QuoteSerializer(
+        settings.schema_registry_url, settings.schema_path, settings.topic_quotes
     )
-    publisher = TradePublisher(settings, serializer)
+    publisher = QuotePublisher(settings, serializer)
 
-    stop = asyncio.Event()
-    loop = asyncio.get_running_loop()
+    stop = threading.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
-            loop.add_signal_handler(sig, stop.set)
-        except NotImplementedError:
-            pass  # Windows event loop — Ctrl+C still raises KeyboardInterrupt
+            signal.signal(sig, lambda *_: stop.set())
+        except (ValueError, OSError):
+            pass  # not on the main thread / unsupported platform
 
     log.info(
-        "producing %s ticks for %s → topic %s",
-        settings.source, settings.symbol_list, settings.topic_trades,
+        "polling %s quotes for %s every %ss → topic %s",
+        settings.source, settings.symbol_list, settings.poll_interval_seconds, settings.topic_quotes,
     )
     try:
-        async for raw in stream_trades(settings, stop):
-            publisher.publish(to_trade_record(raw, settings.source))
+        for raw in iter_quotes(settings, stop):
+            publisher.publish(to_quote_record(raw, settings.source))
+    except KeyboardInterrupt:
+        pass
     finally:
         log.info(
             "flushing (sent=%d failed=%d dropped=%d)",
             publisher.sent, publisher.failed, publisher.dropped,
         )
         publisher.flush()
-
-
-def main() -> None:
-    try:
-        asyncio.run(run())
-    except KeyboardInterrupt:
-        pass
 
 
 if __name__ == "__main__":

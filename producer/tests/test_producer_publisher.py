@@ -2,7 +2,7 @@
 A fake librdkafka Producer + a fake serializer keep these pure (no broker)."""
 
 from market_producer.config import Settings
-from market_producer.publisher import TradePublisher
+from market_producer.publisher import QuotePublisher
 
 
 class FakeProducer:
@@ -37,11 +37,11 @@ class FakeSerializer:
 
 
 def _settings():
-    return Settings(kafka_bootstrap="x", schema_registry_url="x", topic_trades="market.trades")
+    return Settings(kafka_bootstrap="x", schema_registry_url="x", topic_quotes="market.quotes")
 
 
 def test_publish_drops_schema_invalid_record():
-    pub = TradePublisher(_settings(), FakeSerializer(raise_on="BAD"), producer=FakeProducer())
+    pub = QuotePublisher(_settings(), FakeSerializer(raise_on="BAD"), producer=FakeProducer())
     pub.publish({"symbol": "BAD"})
     assert pub.dropped == 1
     assert pub.sent == 0
@@ -49,15 +49,15 @@ def test_publish_drops_schema_invalid_record():
 
 def test_publish_keys_by_symbol():
     fake = FakeProducer()
-    pub = TradePublisher(_settings(), FakeSerializer(), producer=fake)
-    pub.publish({"symbol": "BTCUSDT"})
-    assert fake.produced[0][1] == b"BTCUSDT"     # key == symbol
+    pub = QuotePublisher(_settings(), FakeSerializer(), producer=fake)
+    pub.publish({"symbol": "AAPL"})
+    assert fake.produced[0][1] == b"AAPL"         # key == symbol
     assert pub.sent == 1
 
 
 def test_publish_retries_on_backpressure():
     fake = FakeProducer(fail_buffer_times=2)
-    pub = TradePublisher(_settings(), FakeSerializer(), producer=fake)
-    pub.publish({"symbol": "ETHUSDT"})
+    pub = QuotePublisher(_settings(), FakeSerializer(), producer=fake)
+    pub.publish({"symbol": "MSFT"})
     assert len(fake.produced) == 1               # eventually delivered, never dropped
     assert fake.poll_calls >= 2                   # drained between retries

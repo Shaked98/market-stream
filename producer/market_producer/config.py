@@ -3,23 +3,24 @@ nothing is hard-coded so the same image runs locally and on the cluster."""
 
 from __future__ import annotations
 
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # ── Source feed ──────────────────────────────────────────────────────────
-    ws_url: str = "wss://stream.binance.com:9443/stream"
-    symbols: str = "BTCUSDT,ETHUSDT,SOLUSDT"
-    source: str = "binance"
+    # ── Source feed (Yahoo Finance, polled, keyless) ─────────────────────────
+    quote_url: str = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d"
+    symbols: str = "AAPL,GOOG,MSFT"
+    source: str = "yahoo"
+    poll_interval_seconds: float = 3.0
+    http_timeout_seconds: float = 10.0
 
     # ── Kafka / Redpanda ─────────────────────────────────────────────────────
     kafka_bootstrap: str = "localhost:9092"
     schema_registry_url: str = "http://localhost:8081"
-    topic_trades: str = "market.trades"
-    schema_path: str = "schemas/trade.avsc"
+    topic_quotes: str = "market.quotes"
+    schema_path: str = "schemas/quote.avsc"
 
     # ── Producer tuning (durable + idempotent by default) ─────────────────────
     producer_acks: str = "all"

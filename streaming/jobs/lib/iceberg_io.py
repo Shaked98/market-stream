@@ -14,22 +14,20 @@ def ensure_namespace(spark: SparkSession, catalog: str, namespace: str) -> None:
     spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {catalog}.{namespace}")
 
 
-def ensure_tables(spark: SparkSession, trades_table: str, ohlcv_table: str) -> None:
+def ensure_tables(spark: SparkSession, quotes_table: str, ohlcv_table: str) -> None:
     """Create the append + aggregate tables if absent. Partitioned by symbol + event date."""
     spark.sql(
         f"""
-        CREATE TABLE IF NOT EXISTS {trades_table} (
-            symbol         STRING,
-            trade_id       BIGINT,
-            price          DECIMAL(38,8),
-            quantity       DECIMAL(38,8),
-            is_buyer_maker BOOLEAN,
-            trade_time     TIMESTAMP,
-            event_time     TIMESTAMP,
-            ingest_time    TIMESTAMP,
-            source         STRING
+        CREATE TABLE IF NOT EXISTS {quotes_table} (
+            symbol      STRING,
+            price       DECIMAL(38,8),
+            volume      DECIMAL(38,8),
+            day_volume  BIGINT,
+            quote_time  TIMESTAMP,
+            ingest_time TIMESTAMP,
+            source      STRING
         ) USING iceberg
-        PARTITIONED BY (symbol, days(trade_time))
+        PARTITIONED BY (symbol, days(quote_time))
         """
     )
     spark.sql(
@@ -53,8 +51,8 @@ def ensure_tables(spark: SparkSession, trades_table: str, ohlcv_table: str) -> N
     )
 
 
-def append_trades(batch_df: DataFrame, trades_table: str) -> None:
-    batch_df.writeTo(trades_table).append()
+def append_quotes(batch_df: DataFrame, quotes_table: str) -> None:
+    batch_df.writeTo(quotes_table).append()
 
 
 def upsert_ohlcv(batch_df: DataFrame, ohlcv_table: str) -> None:

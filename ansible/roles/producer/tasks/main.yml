@@ -1,8 +1,8 @@
 ---
-# The producer Deployment: streams live Binance trades into Redpanda. Pulls the private
-# GHCR image via the ghcr-pull secret created by the secrets role.
+# The producer Deployment: polls live Yahoo Finance stock quotes into Redpanda. Pulls the
+# private GHCR image via the ghcr-pull secret created by the secrets role.
 
-- name: Deploy the producer (Binance WS → Redpanda)
+- name: Deploy the producer (Yahoo Finance → Redpanda)
   kubernetes.core.k8s:
     state: present
     definition:
@@ -31,9 +31,11 @@
                 env:
                   - { name: KAFKA_BOOTSTRAP, value: "{{ redpanda_kafka_bootstrap }}" }
                   - { name: SCHEMA_REGISTRY_URL, value: "{{ redpanda_schema_registry_url }}" }
-                  - { name: TOPIC_TRADES, value: "{{ topic_trades }}" }
+                  - { name: TOPIC_QUOTES, value: "{{ topic_quotes }}" }
                   - { name: SYMBOLS, value: "{{ symbols }}" }
-                  - { name: WS_URL, value: "{{ ws_url }}" }
+                  - { name: SOURCE, value: "{{ source }}" }
+                  - { name: QUOTE_URL, value: "{{ quote_url }}" }
+                  - { name: POLL_INTERVAL_SECONDS, value: "{{ poll_interval_seconds }}" }
                 resources:
                   requests: { cpu: 100m, memory: 128Mi }
                   limits: { cpu: 500m, memory: 256Mi }

@@ -56,10 +56,10 @@ spec:
         value: "true"
       - name: KAFKA_BOOTSTRAP
         value: "redpanda.market-stream.svc.cluster.local:9093"
-      - name: TOPIC_TRADES
-        value: "market.trades"
-      - name: TRADES_TABLE
-        value: "lake.market.trades_raw"
+      - name: TOPIC_QUOTES
+        value: "market.quotes"
+      - name: QUOTES_TABLE
+        value: "lake.market.quotes_raw"
       - name: OHLCV_TABLE
         value: "lake.market.ohlcv_1m"
       - name: WINDOW_DURATION

@@ -7,7 +7,7 @@
 # Against the CLUSTER (port-forward Trino + Redpanda first, or set the hosts):
 #   TRINO_HOST=... TRINO_PORT=... KAFKA_BOOTSTRAP=... SCHEMA_REGISTRY_URL=... tests/smoke-test.sh
 #
-# Env: N (default 50), SMOKE_SYMBOL (default TESTUSDT), PYTHON (override interpreter).
+# Env: N (default 50), SMOKE_SYMBOL (default TEST), PYTHON (override interpreter).
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -21,7 +21,7 @@ if [ -z "$PY" ]; then
 fi
 
 N="${N:-50}"
-SMOKE_SYMBOL="${SMOKE_SYMBOL:-TESTUSDT}"
+SMOKE_SYMBOL="${SMOKE_SYMBOL:-TEST}"
 export TRINO_HOST="${TRINO_HOST:-localhost}" TRINO_PORT="${TRINO_PORT:-8080}"
 export TRINO_CATALOG="${TRINO_CATALOG:-iceberg}" TRINO_SCHEMA="market"
 export KAFKA_BOOTSTRAP="${KAFKA_BOOTSTRAP:-localhost:19092}"
@@ -44,7 +44,7 @@ trades=0; ohlcv=0
 printf '  waiting for the streaming micro-batch'
 for _ in $(seq 1 30); do
   trades=$("$PY" tests/smoke_query.py \
-    "SELECT count(*) FROM market.trades_raw WHERE symbol='$SMOKE_SYMBOL'" 2>/dev/null || echo 0)
+    "SELECT count(*) FROM market.quotes_raw WHERE symbol='$SMOKE_SYMBOL'" 2>/dev/null || echo 0)
   ohlcv=$("$PY" tests/smoke_query.py \
     "SELECT count(*) FROM market.ohlcv_1m WHERE symbol='$SMOKE_SYMBOL'" 2>/dev/null || echo 0)
   if [ "${trades:-0}" -ge "$N" ] 2>/dev/null && [ "${ohlcv:-0}" -ge 1 ] 2>/dev/null; then break; fi
@@ -53,9 +53,9 @@ done
 echo
 
 if [ "${trades:-0}" -ge "$N" ] 2>/dev/null; then
-  ok "trades_raw has >= $N rows ($trades)"
+  ok "quotes_raw has >= $N rows ($trades)"
 else
-  no "trades_raw rows ($trades, want >= $N)"
+  no "quotes_raw rows ($trades, want >= $N)"
 fi
 if [ "${ohlcv:-0}" -ge 1 ] 2>/dev/null; then
   ok "ohlcv_1m has >= 1 window ($ohlcv)"

@@ -1,8 +1,8 @@
-"""Spark Structured Streaming: Redpanda (Avro trades) → Apache Iceberg.
+"""Spark Structured Streaming: Redpanda (Avro stock quotes) → Apache Iceberg.
 
 Two streaming queries share the same Kafka topic:
 
-  1. trades_raw — a stateless append of every decoded tick (exactly-once: Kafka offsets
+  1. quotes_raw — a stateless append of every decoded quote (exactly-once: Kafka offsets
      in the checkpoint + Iceberg's atomic commits).
   2. ohlcv_1m  — a stateful, watermarked 1-minute OHLCV/VWAP aggregation written via
      foreachBatch + Iceberg MERGE (idempotent upsert on (symbol, window_start)).
@@ -26,18 +26,18 @@ from pyspark.sql import functions as F
 from pyspark.sql.avro.functions import from_avro
 
 from lib import iceberg_io
-from lib.transforms import aggregate_ohlcv, cast_trade_columns
+from lib.transforms import aggregate_ohlcv, cast_quote_columns
 
 CATALOG = os.environ.get("ICEBERG_CATALOG", "lake")
 KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP", "redpanda:9092")
-TRADES_TOPIC = os.environ.get("TOPIC_TRADES", "market.trades")
-TRADES_TABLE = os.environ.get("TRADES_TABLE", f"{CATALOG}.market.trades_raw")
+QUOTES_TOPIC = os.environ.get("TOPIC_QUOTES", "market.quotes")
+QUOTES_TABLE = os.environ.get("QUOTES_TABLE", f"{CATALOG}.market.quotes_raw")
 OHLCV_TABLE = os.environ.get("OHLCV_TABLE", f"{CATALOG}.market.ohlcv_1m")
 WINDOW_DURATION = os.environ.get("WINDOW_DURATION", "1 minute")
 WATERMARK_DELAY = os.environ.get("WATERMARK_DELAY", "2 minutes")
 STARTING_OFFSETS = os.environ.get("STARTING_OFFSETS", "latest")
 CHECKPOINT = os.environ.get("CHECKPOINT_LOCATION", "s3a://lakehouse/checkpoints/market-stream")
-SCHEMA_PATH = os.environ.get("SCHEMA_PATH", "/opt/spark/jobs/schemas/trade.avsc")
+SCHEMA_PATH = os.environ.get("SCHEMA_PATH", "/opt/spark/jobs/schemas/quote.avsc")
 
 
 def build_spark() -> SparkSession:
@@ -54,23 +54,23 @@ def build_spark() -> SparkSession:
     return builder.getOrCreate()
 
 
-def read_trades(spark: SparkSession, schema_json: str):
+def read_quotes(spark: SparkSession, schema_json: str):
     """Read the Kafka topic and Avro-decode it. confluent-kafka prepends a 5-byte wire
     header (magic byte + 4-byte schema id) that OSS `from_avro` doesn't understand, so we
     strip it before decoding."""
     kafka = (
         spark.readStream.format("kafka")
         .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP)
-        .option("subscribe", TRADES_TOPIC)
+        .option("subscribe", QUOTES_TOPIC)
         .option("startingOffsets", STARTING_OFFSETS)
         .load()
     )
     decoded = (
         kafka.select(F.expr("substring(value, 6, length(value) - 5)").alias("avro"))
-        .select(from_avro(F.col("avro"), schema_json).alias("t"))
-        .select("t.*")
+        .select(from_avro(F.col("avro"), schema_json).alias("q"))
+        .select("q.*")
     )
-    return cast_trade_columns(decoded)
+    return cast_quote_columns(decoded)
 
 
 def main() -> None:
@@ -79,21 +79,21 @@ def main() -> None:
     schema_json = Path(SCHEMA_PATH).read_text(encoding="utf-8")
 
     iceberg_io.ensure_namespace(spark, CATALOG, "market")
-    iceberg_io.ensure_tables(spark, TRADES_TABLE, OHLCV_TABLE)
+    iceberg_io.ensure_tables(spark, QUOTES_TABLE, OHLCV_TABLE)
 
-    trades = read_trades(spark, schema_json)
+    quotes = read_quotes(spark, schema_json)
 
     # Query 1: raw append.
     raw_query = (
-        trades.writeStream.queryName("trades_raw")
+        quotes.writeStream.queryName("quotes_raw")
         .format("iceberg")
         .outputMode("append")
-        .option("checkpointLocation", f"{CHECKPOINT}/trades_raw")
-        .toTable(TRADES_TABLE)
+        .option("checkpointLocation", f"{CHECKPOINT}/quotes_raw")
+        .toTable(QUOTES_TABLE)
     )
 
     # Query 2: watermarked 1-minute OHLCV/VWAP → MERGE upsert.
-    ohlcv = aggregate_ohlcv(trades.withWatermark("trade_time", WATERMARK_DELAY), WINDOW_DURATION)
+    ohlcv = aggregate_ohlcv(quotes.withWatermark("quote_time", WATERMARK_DELAY), WINDOW_DURATION)
 
     def write_ohlcv(batch_df, _batch_id):
         iceberg_io.upsert_ohlcv(batch_df, OHLCV_TABLE)

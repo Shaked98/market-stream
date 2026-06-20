@@ -1,0 +1,23 @@
+{
+  "type": "record",
+  "name": "Quote",
+  "namespace": "com.avrahamshaked.marketstream",
+  "doc": "A polled stock quote sample, normalised from the Yahoo Finance chart endpoint. One record per poll per symbol, published to the `market.quotes` topic; registry subject `market.quotes-value`. Stocks (free, keyless) are polled rather than streamed, so there is no trade id or aggressor side; `volume` is the increment traded since the previous poll (Σ day volume delta), used to weight VWAP. Prices/volumes travel as strings to preserve precision; Spark casts to decimal(38,8).",
+  "fields": [
+    { "name": "symbol", "type": "string", "doc": "Ticker, e.g. AAPL." },
+    { "name": "price", "type": "string", "doc": "Latest price (Yahoo regularMarketPrice)." },
+    { "name": "volume", "type": "string", "doc": "Incremental volume since the previous poll (day-volume delta, >= 0). 0 when the market is closed or nothing traded between polls." },
+    { "name": "day_volume", "type": "long", "doc": "Cumulative volume traded so far today." },
+    {
+      "name": "quote_time",
+      "type": { "type": "long", "logicalType": "timestamp-millis" },
+      "doc": "Producer poll time (UTC). The watermark / windowing column — using poll time keeps 1-minute windows advancing with wall-clock even when the delayed price is static."
+    },
+    {
+      "name": "ingest_time",
+      "type": { "type": "long", "logicalType": "timestamp-millis" },
+      "doc": "Producer-stamped receive time; equal to quote_time for the poller but kept for parity / future sources."
+    },
+    { "name": "source", "type": "string", "default": "yahoo", "doc": "Provenance; reserved for future multi-source support." }
+  ]
+}

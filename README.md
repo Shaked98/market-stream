@@ -1,8 +1,8 @@
 # market-stream
 
-**Live crypto market data → Redpanda → Spark Structured Streaming → Apache Iceberg**, with a
+**Live stock market data → Redpanda → Spark Structured Streaming → Apache Iceberg**, with a
 recruiter-facing demo that *never looks broken*. An event-driven streaming pipeline that lands
-exactly-once raw ticks and idempotent 1-minute OHLCV/VWAP rollups in the same open lakehouse as
+exactly-once raw quotes and idempotent 1-minute OHLCV/VWAP rollups in the same open lakehouse as
 the sibling [`spark-k8s`](../spark-k8s) project — queryable from Trino/Superset and a tiny live
 web app.
 
@@ -10,17 +10,20 @@ web app.
 > zero backend and auto-upgrades to live data whenever the pipeline is running, so it is always
 > worth opening.
 
-Binance public WebSocket → a resilient Python producer → Redpanda (Kafka API + Avro Schema
-Registry) → a Spark Structured Streaming job → two Iceberg tables in the Lakekeeper REST catalog.
+Yahoo Finance (free, keyless, polled) → a resilient Python producer → Redpanda (Kafka API + Avro
+Schema Registry) → a Spark Structured Streaming job → two Iceberg tables in the Lakekeeper REST
+catalog. Tracks `AAPL, GOOG, MSFT` by default — set `SYMBOLS` to any tickers.
 
 ## Architecture
 
+![market-stream architecture](docs/architecture.svg)
+
 ```mermaid
 flowchart LR
-  BIN["Binance WS<br/>@trade streams"] --> PROD["producer<br/>(Python, reconnect+backpressure)"]
+  BIN["Yahoo Finance<br/>chart endpoint (polled)"] --> PROD["producer<br/>(Python, poll + backoff)"]
   PROD -->|Avro| RP["Redpanda<br/>Kafka API + Schema Registry"]
   RP --> SPARK["Spark Structured Streaming<br/>1-min OHLCV / VWAP"]
-  SPARK -->|append| RAW["Iceberg<br/>lake.market.trades_raw"]
+  SPARK -->|append| RAW["Iceberg<br/>lake.market.quotes_raw"]
   SPARK -->|MERGE upsert| OHLCV["Iceberg<br/>lake.market.ohlcv_1m"]
   RAW --> CAT[("Lakekeeper REST catalog<br/>+ S3 warehouse")]
   OHLCV --> CAT
@@ -31,8 +34,8 @@ flowchart LR
 
 | Layer | Where | What |
 |-------|-------|------|
-| Contract | `schemas/` | Avro `trade` + `ohlcv` schemas; Redpanda Schema Registry subjects |
-| Producer | `producer/` | Binance WS → Redpanda; reconnect/backoff, backpressure, idempotent publish |
+| Contract | `schemas/` | Avro `quote` + `ohlcv` schemas; Redpanda Schema Registry subjects |
+| Producer | `producer/` | Yahoo Finance → Redpanda; poll + backoff, backpressure, idempotent publish |
 | Broker | `ansible/roles/redpanda/` + `local/` | Redpanda (Kafka API + Schema Registry), single broker |
 | Streaming | `streaming/` | Spark Structured Streaming → Iceberg; append + MERGE, checkpointed |
 | Lakehouse | *reused* | Lakekeeper REST catalog + S3 warehouse from `spark-k8s` (not re-deployed here) |
@@ -55,12 +58,12 @@ is thin (a README pointing at the spark-k8s cluster); a future standalone mode w
 
 > 📐 Build-time + runtime diagrams: [docs/architecture.md](docs/architecture.md).
 > Why Spark over Flink: [docs/spark-vs-flink.md](docs/spark-vs-flink.md).
-> Why Binance: [docs/source-choice.md](docs/source-choice.md).
+> Why Yahoo Finance (polled): [docs/source-choice.md](docs/source-choice.md).
 
 ## Quick start — local (recommended)
 
 The laptop stack runs the **whole pipeline** with zero cloud cost: Redpanda + Schema Registry,
-MinIO, Lakekeeper, Trino, the producer (pulling **real** live Binance ticks), the Spark job, and
+MinIO, Lakekeeper, Trino, the producer (polling **real** live Yahoo Finance quotes), the Spark job, and
 the web API. Requires Docker.
 
 ```bash
@@ -68,7 +71,7 @@ cp .env.example .env          # dev defaults; nothing secret
 make local-up                 # docker compose up --build
 # Watch live ticks land in Iceberg, via Trino:
 docker exec -it market-stream-trino-1 trino --catalog iceberg \
-  --execute "SELECT count(*) FROM market.trades_raw"
+  --execute "SELECT count(*) FROM market.quotes_raw"
 # Open the demo against the local API (API is on :8000, so serve the frontend on :8001):
 python -m http.server -d web/frontend 8001   # → http://localhost:8001
 make local-down               # add ARGS=-v to wipe volumes
@@ -120,7 +123,7 @@ The shared `spark-k8s` cluster is left intact; tear *it* down from that repo (`t
   encrypted and the age key isn't tracked, validates the Avro schemas, and runs the Python unit
   tests when `pytest` is present.
 - `tests/smoke-test.sh` — live end-to-end: produces N synthetic ticks → waits for a micro-batch
-  → asserts rows landed in `market.trades_raw` and a window exists in `ohlcv_1m` (via Trino).
+  → asserts rows landed in `market.quotes_raw` and a window exists in `ohlcv_1m` (via Trino).
   Runs against the local stack (`make local-smoke`) or the cluster.
 
 See [tests/README.md](tests/README.md).
@@ -128,8 +131,8 @@ See [tests/README.md](tests/README.md).
 ## Layout
 
 ```
-schemas/     Avro message contracts (trade.avsc, ohlcv.avsc) + registry conventions
-producer/    Binance WS → Redpanda (Python, containerized, pinned deps)
+schemas/     Avro message contracts (quote.avsc, ohlcv.avsc) + registry conventions
+producer/    Yahoo Finance → Redpanda (Python poller, containerized, pinned deps)
 streaming/   Spark Structured Streaming → Iceberg (job + SparkApplication CRD + image)
 web/         api/ (FastAPI read-only) + frontend/ (static, Cloudflare Pages)
 local/       docker-compose dev stack — the primary verification path
@@ -145,7 +148,7 @@ tests/       validate.sh (offline) + smoke-test.sh (live) + unit/
   live in `ansible/secrets/secrets.sops.yaml` (SOPS-encrypted, gitignored) and the age private
   key is supplied out-of-band. Only `secrets.sops.example.yaml` is tracked. The local stack uses
   throwaway dev credentials only.
-- **PoC scope.** Single Redpanda broker, single exchange (Binance), 1-minute rollups, no auth on
+- **PoC scope.** Single Redpanda broker, single source (Yahoo Finance, polled), 1-minute rollups, no auth on
   the local Lakekeeper. The pipeline itself is production-grade (reconnect, backpressure,
   checkpointing, idempotent Iceberg writes); the web demo is a PoC built to never appear broken.
 - **TODO:** confirm the public demo subdomain (`*.pages.dev` vs `market-stream.avrahamshaked.com`)

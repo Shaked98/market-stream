@@ -63,6 +63,6 @@
                 image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
                 command: ["/bin/sh", "-c"]
                 args:
-                  - "rpk topic create {{ topic_trades }} -p {{ topic_partitions }} -r 1 --brokers {{ redpanda_kafka_bootstrap }} || true"
+                  - "rpk topic create {{ topic_quotes }} -p {{ topic_partitions }} -r 1 --brokers {{ redpanda_kafka_bootstrap }} || true"
   environment:
     KUBECONFIG: /root/.kube/config

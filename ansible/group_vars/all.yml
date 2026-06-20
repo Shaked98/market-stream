@@ -24,12 +24,14 @@ redpanda_chart_version: "5.9.5"             # redpandadata/redpanda
 redpanda_repo_url: "https://charts.redpanda.com"
 redpanda_kafka_bootstrap: "redpanda.market-stream.svc.cluster.local:9093"
 redpanda_schema_registry_url: "http://redpanda.market-stream.svc.cluster.local:8081"
-topic_trades: "market.trades"
+topic_quotes: "market.quotes"
 topic_partitions: 3
 
-# ── Source feed (producer) ──────────────────────────────────────────────────────
-ws_url: "wss://stream.binance.com:9443/stream"
-symbols: "BTCUSDT,ETHUSDT,SOLUSDT"
+# ── Source feed (producer): Yahoo Finance, polled, keyless ──────────────────────
+quote_url: "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1m&range=1d"
+poll_interval_seconds: "3"
+source: "yahoo"
+symbols: "AAPL,GOOG,MSFT"
 
 # ── Iceberg sink → the EXISTING spark-k8s Lakekeeper warehouse ──────────────────
 iceberg_catalog: "lake"

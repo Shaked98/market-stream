@@ -1,7 +1,7 @@
-"""Kafka/Redpanda publisher for serialized trade records.
+"""Kafka/Redpanda publisher for serialized quote records.
 
 Durable + idempotent (`acks=all`, `enable.idempotence=true`). Keyed by symbol so a
-symbol's ticks keep their order on one partition (the streaming windowing relies on
+symbol's quotes keep their order on one partition (the streaming windowing relies on
 this). Backpressure-aware: when librdkafka's local queue is full, we drain and retry
 rather than dropping. Schema-invalid records are dropped (counted), never fatal.
 """
@@ -13,17 +13,17 @@ import logging
 from confluent_kafka import Producer
 
 from .config import Settings
-from .serializer import TradeSerializer
+from .serializer import QuoteSerializer
 
 log = logging.getLogger("market_producer.publisher")
 
 
-class TradePublisher:
+class QuotePublisher:
     def __init__(
-        self, settings: Settings, serializer: TradeSerializer, producer: Producer | None = None
+        self, settings: Settings, serializer: QuoteSerializer, producer: Producer | None = None
     ) -> None:
         self.serializer = serializer
-        self.topic = settings.topic_trades
+        self.topic = settings.topic_quotes
         self.sent = 0
         self.failed = 0
         self.dropped = 0
