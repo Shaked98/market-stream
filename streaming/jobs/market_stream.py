@@ -96,7 +96,7 @@ def main() -> None:
     ohlcv = aggregate_ohlcv(trades.withWatermark("trade_time", WATERMARK_DELAY), WINDOW_DURATION)
 
     def write_ohlcv(batch_df, _batch_id):
-        iceberg_io.upsert_ohlcv(spark, batch_df, OHLCV_TABLE)
+        iceberg_io.upsert_ohlcv(batch_df, OHLCV_TABLE)
 
     ohlcv_query = (
         ohlcv.writeStream.queryName("ohlcv_1m")

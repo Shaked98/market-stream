@@ -57,10 +57,16 @@ def append_trades(batch_df: DataFrame, trades_table: str) -> None:
     batch_df.writeTo(trades_table).append()
 
 
-def upsert_ohlcv(spark: SparkSession, batch_df: DataFrame, ohlcv_table: str) -> None:
-    """Idempotent upsert of a micro-batch of rollups via Iceberg MERGE."""
+def upsert_ohlcv(batch_df: DataFrame, ohlcv_table: str) -> None:
+    """Idempotent upsert of a micro-batch of rollups via Iceberg MERGE.
+
+    Inside foreachBatch the batch DataFrame belongs to its own SparkSession, so the temp
+    view and the MERGE must use THAT session (not the driver's outer session) — otherwise
+    the view isn't visible to the query.
+    """
+    session = batch_df.sparkSession
     batch_df.createOrReplaceTempView("_ohlcv_updates")
-    spark.sql(
+    session.sql(
         f"""
         MERGE INTO {ohlcv_table} t
         USING _ohlcv_updates s
