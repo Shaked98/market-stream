@@ -1,0 +1,65 @@
+# ── OpenTofu / Terraform (commit .terraform.lock.hcl for reproducible providers) ──
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+*.tfvars
+!*.tfvars.example
+
+# ── Kubeconfig fetched from / pointed at the cluster ──
+kubeconfig
+*.kubeconfig
+
+# ── Ansible ──
+*.retry
+ansible/inventory/hosts.ini
+ansible/deploy.log
+*.log
+
+# ── Secrets / SSH ──
+*.pem
+id_rsa*
+.env
+!.env.example
+
+# ── SOPS / age. Never commit the age private key, decrypted plaintext, OR the real
+#    secrets file — even SOPS-encrypted. Only the placeholder example is tracked. ──
+*.age
+age.key
+*.agekey
+keys.txt
+ansible/secrets/*
+!ansible/secrets/secrets.sops.example.yaml
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+
+# ── Spark / local data (the laptop docker-compose stack writes here) ──
+local/data/
+spark-warehouse/
+metastore_db/
+derby.log
+*.crc
+checkpoints/
+
+# ── Node / frontend build artifacts (frontend is plain static, but just in case) ──
+node_modules/
+web/frontend/dist/
+
+# ── OS / editor ──
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

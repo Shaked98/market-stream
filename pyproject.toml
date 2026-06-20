@@ -1,0 +1,16 @@
+# Repo-level tooling config (test + lint). The producer and streaming code are deployed
+# as containers with their own pinned requirements.txt; this file only wires the dev
+# tools so `pytest` and `ruff` work from the repo root.
+
+[tool.pytest.ini_options]
+# Put the app packages on sys.path so tests can `import market_producer` / `import lib...`.
+pythonpath = ["producer", "streaming/jobs"]
+testpaths = ["producer/tests", "streaming/tests", "tests/unit"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

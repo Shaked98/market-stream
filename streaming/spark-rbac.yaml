@@ -1,0 +1,38 @@
+# Reuses the spark-jobs namespace + `spark` ServiceAccount the spark-k8s cluster already
+# provisions for the Spark Operator. Included here so the streaming job is self-contained
+# if applied to a fresh cluster; on the shared cluster these objects already exist and
+# `kubectl apply` is a no-op. Identical to spark-k8s/spark/spark-rbac.yaml.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spark-jobs
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spark
+  namespace: spark-jobs
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: spark-driver
+  namespace: spark-jobs
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spark-driver
+  namespace: spark-jobs
+subjects:
+  - kind: ServiceAccount
+    name: spark
+    namespace: spark-jobs
+roleRef:
+  kind: Role
+  name: spark-driver
+  apiGroup: rbac.authorization.k8s.io

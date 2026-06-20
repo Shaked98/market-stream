@@ -1,0 +1,8 @@
+# Runtime dependencies, pinned for reproducible builds. The `[avro]` extra pulls the
+# Schema Registry Avro serializer + its HTTP/fastavro deps. A full pip-compile lockfile
+# (hash-pinned) is the production follow-up; exact `==` pins are the PoC baseline.
+confluent-kafka[avro]==2.5.3
+fastavro==1.9.7
+websockets==12.0
+pydantic==2.9.2
+pydantic-settings==2.5.2

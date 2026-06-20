@@ -1,0 +1,4 @@
+# The streaming job runs on the PySpark that ships in the apache/spark:3.5.3 base image
+# (see streaming/Dockerfile). This pin exists only for LOCAL test/dev parity; the repo
+# root requirements-dev.txt installs it for the transform unit tests.
+pyspark==3.5.3

@@ -1,0 +1,6 @@
+# The generated inventory (hosts.ini) is gitignored. market-stream reuses the spark-k8s
+# cluster, so copy that repo's rendered inventory here before deploying:
+#
+#   cp ../spark-k8s/ansible/inventory/hosts.ini ./hosts.ini
+#
+# (Or point ansible-playbook -i at it directly.)

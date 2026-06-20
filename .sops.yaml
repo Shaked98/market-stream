@@ -1,0 +1,14 @@
+# SOPS creation rules. Encrypts the market-stream secrets with age. Replace the age
+# recipient below with your own public key (generate with: age-keygen -o age.key,
+# the public key is printed as "Public key: age1...").
+#
+# This reuses the same age recipient as the sibling spark-k8s repo on purpose, so a
+# single age.key decrypts both — convenient when market-stream deploys onto the
+# spark-k8s cluster. Swap it for a fresh key if you want them isolated.
+#
+# The matching age PRIVATE key is supplied out-of-band at deploy time and never
+# committed — Ansible's community.sops lookup reads it from $SOPS_AGE_KEY_FILE:
+#   export SOPS_AGE_KEY_FILE=$PWD/age.key
+creation_rules:
+  - path_regex: ansible/secrets/.*\.sops\.yaml$
+    age: "age1l37384xu7359a8wltv7379y6h8l4z9ks9v85p3dgwecqu3yag9lq58afva"

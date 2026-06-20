@@ -1,0 +1,72 @@
+---
+# The read-only demo API: a small FastAPI container that queries the in-cluster Trino,
+# exposed through a Hetzner LoadBalancer (provisioned by the spark-k8s CCM). CORS is
+# locked to the public demo origin; the API has no write routes.
+
+- name: Deploy the web API
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: market-stream-api
+        namespace: "{{ market_stream_namespace }}"
+        labels:
+          app: market-stream-api
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: market-stream-api
+        template:
+          metadata:
+            labels:
+              app: market-stream-api
+          spec:
+            imagePullSecrets:
+              - name: ghcr-pull
+            containers:
+              - name: api
+                image: "{{ web_api_image }}"
+                ports:
+                  - containerPort: 8000
+                env:
+                  - { name: TRINO_HOST, value: "trino.{{ market_stream_namespace }}.svc.cluster.local" }
+                  - { name: TRINO_PORT, value: "8080" }
+                  - { name: TRINO_CATALOG, value: "iceberg" }
+                  - { name: TRINO_USER, value: "market-stream-web" }
+                  - { name: SYMBOLS, value: "{{ symbols }}" }
+                  - { name: CORS_ALLOW_ORIGIN, value: "{{ web_cors_allow_origin }}" }
+                  - { name: API_RATE_LIMIT, value: "{{ web_rate_limit }}" }
+                resources:
+                  requests: { cpu: 100m, memory: 128Mi }
+                  limits: { cpu: 500m, memory: 256Mi }
+                readinessProbe:
+                  httpGet: { path: /healthz, port: 8000 }
+                  initialDelaySeconds: 10
+                  periodSeconds: 15
+  environment:
+    KUBECONFIG: /root/.kube/config
+
+- name: Expose the web API via a Hetzner LoadBalancer
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: market-stream-api
+        namespace: "{{ market_stream_namespace }}"
+        annotations:
+          load-balancer.hetzner.cloud/location: "{{ s3_region }}"
+      spec:
+        type: LoadBalancer
+        selector:
+          app: market-stream-api
+        ports:
+          - name: http
+            port: 80
+            targetPort: 8000
+  environment:
+    KUBECONFIG: /root/.kube/config

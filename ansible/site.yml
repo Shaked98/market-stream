@@ -1,0 +1,74 @@
+---
+# Deploy the market-stream application layer onto the EXISTING spark-k8s cluster. Run from
+# a Linux/WSL control node, using the spark-k8s repo's rendered inventory:
+#   ansible-playbook -i inventory/hosts.ini site.yml
+#
+# Tear down ONLY the market-stream workloads (the shared cluster stays up):
+#   ansible-playbook -i inventory/hosts.ini site.yml --tags teardown
+#
+# Roles are gated like spark-k8s's site.yml so individual layers can be toggled in
+# group_vars/all.yml.
+
+- name: Deploy market-stream workloads
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  roles:
+    - role: secrets
+    - role: redpanda
+      when: redpanda_enabled | bool
+    - role: producer
+      when: producer_enabled | bool
+    - role: streaming
+      when: streaming_enabled | bool
+    - role: trino
+      when: trino_enabled | bool
+    - role: web_api
+      when: web_enabled | bool
+
+- name: Tear down market-stream workloads (leaves the shared spark-k8s cluster intact)
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  tags: ["never", "teardown"]
+  tasks:
+    - name: Ensure the Kubernetes Python client is present
+      ansible.builtin.apt:
+        name: python3-kubernetes
+        state: present
+        update_cache: true
+
+    - name: Delete the streaming SparkApplication
+      kubernetes.core.k8s:
+        state: absent
+        api_version: sparkoperator.k8s.io/v1beta2
+        kind: SparkApplication
+        name: market-stream
+        namespace: "{{ spark_jobs_namespace }}"
+      environment:
+        KUBECONFIG: /root/.kube/config
+
+    - name: Uninstall Trino
+      kubernetes.core.helm:
+        name: trino
+        release_namespace: "{{ market_stream_namespace }}"
+        state: absent
+      environment:
+        KUBECONFIG: /root/.kube/config
+
+    - name: Uninstall Redpanda
+      kubernetes.core.helm:
+        name: redpanda
+        release_namespace: "{{ market_stream_namespace }}"
+        state: absent
+      environment:
+        KUBECONFIG: /root/.kube/config
+
+    - name: Delete the market-stream namespace (producer, web API, LoadBalancer, PVCs)
+      kubernetes.core.k8s:
+        state: absent
+        api_version: v1
+        kind: Namespace
+        name: "{{ market_stream_namespace }}"
+      environment:
+        KUBECONFIG: /root/.kube/config

@@ -1,0 +1,15 @@
+# Normalise line endings. Shell scripts and YAML stay LF so they run on Linux/WSL
+# regardless of the checkout platform (this repo is authored on Windows).
+* text=auto eol=lf
+*.sh        text eol=lf
+*.py        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.avsc      text eol=lf
+Dockerfile  text eol=lf
+Makefile    text eol=lf
+
+# Binary assets — never normalise.
+*.png binary
+*.jpg binary
+*.ico binary

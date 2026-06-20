@@ -1,0 +1,111 @@
+# Streaming SparkApplication: Redpanda (Avro trades) → Iceberg, writing into the EXISTING
+# spark-k8s Lakekeeper warehouse. Adapted from spark-k8s/spark/spark-iceberg.yaml — same
+# catalog/OAuth2/S3 wiring; the key difference is restartPolicy: Always (a long-running
+# stream, not a run-once batch job).
+#
+#   kubectl apply -f streaming/spark-rbac.yaml -f streaming/spark-market-stream.yaml
+#   kubectl -n spark-jobs get sparkapplication market-stream -w        # RUNNING
+#   kubectl -n spark-jobs logs market-stream-driver -f
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: market-stream
+  namespace: spark-jobs
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: "ghcr.io/shaked98/spark-market-stream:3.5.3-iceberg1.7.1"
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets:
+    - ghcr-pull
+  mainApplicationFile: "local:///opt/spark/jobs/market_stream.py"
+  sparkVersion: "3.5.3"
+  restartPolicy:
+    type: Always              # streaming job — restart on failure (batch demo used Never)
+    onFailureRetryInterval: 10
+    onSubmissionFailureRetryInterval: 20
+  sparkConf:
+    # Iceberg SQL extensions + a REST catalog named "lake" backed by Lakekeeper (same as
+    # the spark-k8s demo job — writes into the same `lakehouse` warehouse).
+    "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"
+    "spark.sql.catalog.lake": "org.apache.iceberg.spark.SparkCatalog"
+    "spark.sql.catalog.lake.type": "rest"
+    "spark.sql.catalog.lake.uri": "http://lakekeeper.lakehouse.svc.cluster.local:8181/catalog"
+    "spark.sql.catalog.lake.warehouse": "lakehouse"
+    "spark.sql.catalog.lake.oauth2-server-uri": "http://keycloak.identity.svc.cluster.local:8080/realms/lakehouse/protocol/openid-connect/token"
+    "spark.sql.catalog.lake.scope": "lakekeeper"
+    "spark.sql.catalog.lake.io-impl": "org.apache.iceberg.aws.s3.S3FileIO"
+    "spark.sql.catalog.lake.s3.endpoint": "https://fsn1.your-objectstorage.com"
+    "spark.sql.catalog.lake.s3.region": "fsn1"
+    "spark.sql.catalog.lake.s3.path-style-access": "true"
+    "spark.sql.defaultCatalog": "lake"
+    # S3A (Hadoop FileSystem) for the Structured Streaming checkpoint. Credentials come
+    # from the AWS_* env vars injected below (no keys in this plaintext manifest).
+    "spark.hadoop.fs.s3a.endpoint": "https://fsn1.your-objectstorage.com"
+    "spark.hadoop.fs.s3a.path.style.access": "true"
+    "spark.hadoop.fs.s3a.aws.credentials.provider": "com.amazonaws.auth.EnvironmentVariableCredentialsProvider"
+  driver:
+    cores: 1
+    memory: "1024m"
+    serviceAccount: spark
+    labels:
+      app: market-stream
+    env:
+      - name: OAUTH_ENABLED
+        value: "true"
+      - name: KAFKA_BOOTSTRAP
+        value: "redpanda.market-stream.svc.cluster.local:9093"
+      - name: TOPIC_TRADES
+        value: "market.trades"
+      - name: TRADES_TABLE
+        value: "lake.market.trades_raw"
+      - name: OHLCV_TABLE
+        value: "lake.market.ohlcv_1m"
+      - name: WINDOW_DURATION
+        value: "1 minute"
+      - name: WATERMARK_DELAY
+        value: "2 minutes"
+      - name: STARTING_OFFSETS
+        value: "latest"
+      - name: CHECKPOINT_LOCATION
+        value: "s3a://spark-k8s-lakehouse/checkpoints/market-stream"
+      - name: SPARK_OAUTH_CLIENT_ID
+        valueFrom:
+          secretKeyRef:
+            name: oidc-spark
+            key: client-id
+      - name: SPARK_OAUTH_CLIENT_SECRET
+        valueFrom:
+          secretKeyRef:
+            name: oidc-spark
+            key: client-secret
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: s3-credentials
+            key: AWS_ACCESS_KEY_ID
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: s3-credentials
+            key: AWS_SECRET_ACCESS_KEY
+  executor:
+    instances: 2
+    cores: 2
+    memory: "2048m"
+    labels:
+      app: market-stream
+    # Executors read/write Parquet data files directly (S3FileIO) and the checkpoint
+    # (S3A), so they need the S3 credentials; they don't talk to the REST catalog.
+    env:
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: s3-credentials
+            key: AWS_ACCESS_KEY_ID
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: s3-credentials
+            key: AWS_SECRET_ACCESS_KEY

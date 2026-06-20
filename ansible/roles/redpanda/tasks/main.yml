@@ -1,0 +1,68 @@
+---
+# Redpanda (Kafka API + Schema Registry) as a single-broker workload. Helm is already on
+# the control node from the spark-k8s deploy; we just add the repo and install.
+
+- name: Add the Redpanda Helm repository
+  kubernetes.core.helm_repository:
+    name: redpanda
+    repo_url: "{{ redpanda_repo_url }}"
+  environment:
+    KUBECONFIG: /root/.kube/config
+
+- name: Install / upgrade Redpanda (single broker + Schema Registry, internal only)
+  kubernetes.core.helm:
+    name: redpanda
+    chart_ref: redpanda/redpanda
+    chart_version: "{{ redpanda_chart_version }}"
+    release_namespace: "{{ market_stream_namespace }}"
+    create_namespace: true
+    wait: true
+    values:
+      statefulset:
+        replicas: 1
+      tls:
+        enabled: false
+      external:
+        enabled: false
+      console:
+        enabled: false        # the local stack ships a console; not needed on the cluster
+      resources:
+        cpu:
+          cores: 1
+        memory:
+          container:
+            max: 2Gi
+      storage:
+        persistentVolume:
+          enabled: true
+          size: 5Gi
+          storageClassName: hcloud-volumes
+      config:
+        cluster:
+          auto_create_topics_enabled: true
+  environment:
+    KUBECONFIG: /root/.kube/config
+
+- name: Ensure the trades topic exists
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: market-stream-topic-init
+        namespace: "{{ market_stream_namespace }}"
+      spec:
+        backoffLimit: 6
+        ttlSecondsAfterFinished: 300
+        template:
+          spec:
+            restartPolicy: OnFailure
+            containers:
+              - name: rpk
+                image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+                command: ["/bin/sh", "-c"]
+                args:
+                  - "rpk topic create {{ topic_trades }} -p {{ topic_partitions }} -r 1 --brokers {{ redpanda_kafka_bootstrap }} || true"
+  environment:
+    KUBECONFIG: /root/.kube/config

@@ -1,0 +1,32 @@
+{
+  "type": "record",
+  "name": "Ohlcv",
+  "namespace": "com.avrahamshaked.marketstream",
+  "doc": "A 1-minute OHLCV + VWAP rollup for one symbol, produced by the Spark Structured Streaming job. This is the schema of the aggregated Iceberg table `lake.market.ohlcv_1m` (upserted via MERGE on (symbol, window_start)); registry subject `market.ohlcv-value` if the rollup is also published to Kafka for the live tape. Monetary fields are decimal(38,8).",
+  "fields": [
+    { "name": "symbol", "type": "string", "doc": "Trading pair, partition key." },
+    {
+      "name": "window_start",
+      "type": { "type": "long", "logicalType": "timestamp-millis" },
+      "doc": "Inclusive start of the 1-minute tumbling window. MERGE key with symbol."
+    },
+    {
+      "name": "window_end",
+      "type": { "type": "long", "logicalType": "timestamp-millis" },
+      "doc": "Exclusive end of the window."
+    },
+    { "name": "open", "type": { "type": "bytes", "logicalType": "decimal", "precision": 38, "scale": 8 }, "doc": "First trade price in the window." },
+    { "name": "high", "type": { "type": "bytes", "logicalType": "decimal", "precision": 38, "scale": 8 }, "doc": "Max trade price." },
+    { "name": "low", "type": { "type": "bytes", "logicalType": "decimal", "precision": 38, "scale": 8 }, "doc": "Min trade price." },
+    { "name": "close", "type": { "type": "bytes", "logicalType": "decimal", "precision": 38, "scale": 8 }, "doc": "Last trade price in the window." },
+    { "name": "volume", "type": { "type": "bytes", "logicalType": "decimal", "precision": 38, "scale": 8 }, "doc": "Sum of base-asset quantity." },
+    { "name": "quote_volume", "type": { "type": "bytes", "logicalType": "decimal", "precision": 38, "scale": 8 }, "doc": "Sum of price * quantity (quote-asset volume)." },
+    { "name": "vwap", "type": { "type": "bytes", "logicalType": "decimal", "precision": 38, "scale": 8 }, "doc": "Volume-weighted average price = quote_volume / volume." },
+    { "name": "trade_count", "type": "long", "doc": "Number of trades aggregated into the window." },
+    {
+      "name": "updated_at",
+      "type": { "type": "long", "logicalType": "timestamp-millis" },
+      "doc": "When this row was last written, so a late re-processed window is an idempotent overwrite."
+    }
+  ]
+}

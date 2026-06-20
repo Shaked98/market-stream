@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>market-stream — live market data pipeline</title>
+  <meta name="description" content="Live crypto feed → Kafka → Spark → Iceberg, queried below. A live demo of an event-driven streaming pipeline by Avraham Shaked." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <div class="head-row">
+      <h1>market-stream</h1>
+      <span id="badge" class="badge sample">Sample feed</span>
+    </div>
+    <p class="subtitle">
+      live feed → <strong>Kafka</strong> → <strong>Spark Structured Streaming</strong> →
+      <strong>Apache Iceberg</strong>, queried below in real time.
+    </p>
+  </header>
+
+  <section class="controls">
+    <label>Symbol
+      <select id="symbol"></select>
+    </label>
+    <label>Timeframe
+      <select id="timeframe"><option value="1m">1 minute</option></select>
+    </label>
+    <div class="price-box">
+      <span class="price-label">last</span>
+      <span id="price" class="price">—</span>
+    </div>
+  </section>
+
+  <main>
+    <section class="panel chart-panel">
+      <h2>OHLCV close <span class="muted">(per 1-min window)</span></h2>
+      <canvas id="chart" width="720" height="220"></canvas>
+    </section>
+
+    <section class="panel tape-panel">
+      <h2>Live tape <span class="muted">(incoming ticks)</span></h2>
+      <ul id="tape" class="tape"></ul>
+    </section>
+
+    <section class="panel table-panel">
+      <h2>1-minute OHLCV / VWAP</h2>
+      <table id="ohlcv">
+        <thead>
+          <tr><th>window</th><th>open</th><th>high</th><th>low</th><th>close</th><th>vwap</th><th>vol</th><th>trades</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      An event-driven streaming pipeline writing into an open Apache Iceberg lakehouse.
+      When the live backend is offline, this page replays a recorded sample so it always
+      shows the system working. — <a href="https://github.com/Shaked98" rel="noopener">Avraham Shaked</a>
+    </p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="chart.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

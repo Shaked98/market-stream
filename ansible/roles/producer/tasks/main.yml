@@ -1,0 +1,41 @@
+---
+# The producer Deployment: streams live Binance trades into Redpanda. Pulls the private
+# GHCR image via the ghcr-pull secret created by the secrets role.
+
+- name: Deploy the producer (Binance WS → Redpanda)
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: market-producer
+        namespace: "{{ market_stream_namespace }}"
+        labels:
+          app: market-producer
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: market-producer
+        template:
+          metadata:
+            labels:
+              app: market-producer
+          spec:
+            imagePullSecrets:
+              - name: ghcr-pull
+            containers:
+              - name: producer
+                image: "{{ producer_image }}"
+                env:
+                  - { name: KAFKA_BOOTSTRAP, value: "{{ redpanda_kafka_bootstrap }}" }
+                  - { name: SCHEMA_REGISTRY_URL, value: "{{ redpanda_schema_registry_url }}" }
+                  - { name: TOPIC_TRADES, value: "{{ topic_trades }}" }
+                  - { name: SYMBOLS, value: "{{ symbols }}" }
+                  - { name: WS_URL, value: "{{ ws_url }}" }
+                resources:
+                  requests: { cpu: 100m, memory: 128Mi }
+                  limits: { cpu: 500m, memory: 256Mi }
+  environment:
+    KUBECONFIG: /root/.kube/config

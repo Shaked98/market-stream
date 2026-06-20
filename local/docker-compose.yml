@@ -1,0 +1,267 @@
+# market-stream — full local pipeline on a laptop, zero cloud cost. Mirrors
+# LakeHouse/local/docker-compose.yml (MinIO + Lakekeeper + Trino) and adds Redpanda +
+# Schema Registry, the producer (real live Binance ticks), the Spark streaming job, and
+# the read-only web API. Run from the repo root:  make local-up
+#
+# Convenience image tags (minio/mc/trino) float at :latest for the local PoC; the cluster
+# pins exact chart versions in ansible/group_vars/all.yml.
+name: market-stream
+
+services:
+
+  # ── Object storage ───────────────────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console → http://localhost:9001 (minioadmin / minioadmin)
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 minioadmin minioadmin &&
+        mc mb --ignore-existing local/lakehouse &&
+        echo 'bucket ready'
+      "
+    restart: on-failure
+
+  # ── Catalog metadata store ─────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: lakekeeper
+      POSTGRES_PASSWORD: lakekeeper
+      POSTGRES_DB: lakekeeper
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lakekeeper"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Iceberg REST catalog (Lakekeeper) ───────────────────────────────────────────
+  lakekeeper-migrate:
+    image: quay.io/lakekeeper/catalog:v0.12.2
+    environment: &lakekeeper-env
+      LAKEKEEPER__BASE_URI: http://lakekeeper:8181
+      LAKEKEEPER__PG_ENCRYPTION_KEY: "thisis32charsencryptionkeyfordev"
+      LAKEKEEPER__PG_DATABASE_URL_READ: "postgresql://lakekeeper:lakekeeper@postgres/lakekeeper"
+      LAKEKEEPER__PG_DATABASE_URL_WRITE: "postgresql://lakekeeper:lakekeeper@postgres/lakekeeper"
+    command: ["migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  lakekeeper:
+    image: quay.io/lakekeeper/catalog:v0.12.2
+    ports:
+      - "8181:8181"   # Catalog + management UI → http://localhost:8181/ui
+    environment: *lakekeeper-env
+    command: ["serve"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      lakekeeper-migrate:
+        condition: service_completed_successfully
+
+  # Bootstrap Lakekeeper + register the MinIO-backed `lakehouse` warehouse (first run).
+  lakekeeper-init:
+    image: curlimages/curl:latest
+    depends_on:
+      lakekeeper:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+          echo 'Waiting for Lakekeeper...'
+          until curl -sf http://lakekeeper:8181/health > /dev/null; do sleep 2; done
+          echo 'Bootstrapping Lakekeeper...'
+          curl -s -o /dev/null -X POST http://lakekeeper:8181/management/v1/bootstrap \
+            -H 'Content-Type: application/json' -d '{"accept-terms-of-use":true}' || true
+          echo 'Registering warehouse...'
+          curl -s -o /dev/null -X POST http://lakekeeper:8181/management/v1/warehouse \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "warehouse-name": "lakehouse",
+              "storage-profile": {
+                "type": "s3", "bucket": "lakehouse", "endpoint": "http://minio:9000",
+                "region": "us-east-1", "path-style-access": true, "sts-enabled": false
+              },
+              "storage-credential": {
+                "type": "s3", "credential-type": "access-key",
+                "aws-access-key-id": "minioadmin", "aws-secret-access-key": "minioadmin"
+              }
+            }' || true
+          echo 'Done'
+    restart: on-failure
+
+  # ── Query engine ─────────────────────────────────────────────────────────────
+  trino:
+    image: trinodb/trino:latest
+    ports:
+      - "8080:8080"   # Web UI + JDBC → http://localhost:8080 (catalog: iceberg)
+    volumes:
+      - ./trino/catalog/iceberg.properties:/etc/trino/catalog/iceberg.properties:ro
+    depends_on:
+      lakekeeper:
+        condition: service_started
+
+  # ── Broker + Schema Registry (Redpanda, single node) ──────────────────────────
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --default-log-level=warn
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+      - --schema-registry-addr=internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr=redpanda:33145
+      - --advertise-rpc-addr=redpanda:33145
+    ports:
+      - "19092:19092"   # Kafka API (host)
+      - "18081:18081"   # Schema Registry (host)
+      - "9644:9644"     # Admin API
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 18
+
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v2.7.2
+    ports:
+      - "8085:8080"   # → http://localhost:8085  (nice screenshot of the live topic)
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_SCHEMAREGISTRY_ENABLED: "true"
+      KAFKA_SCHEMAREGISTRY_URLS: http://redpanda:8081
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  # Create the trades topic up front (3 partitions; keyed by symbol preserves order).
+  topic-init:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "rpk topic create market.trades -p 3 -r 1 --brokers redpanda:9092 || true"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: on-failure
+
+  # ── Producer: live Binance ticks → Redpanda ────────────────────────────────────
+  producer:
+    build:
+      context: ..
+      dockerfile: producer/Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:9092
+      SCHEMA_REGISTRY_URL: http://redpanda:8081
+      TOPIC_TRADES: market.trades
+      SYMBOLS: BTCUSDT,ETHUSDT,SOLUSDT
+      WS_URL: wss://stream.binance.com:9443/stream
+      SOURCE: binance
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # ── Streaming: Spark Structured Streaming → Iceberg ────────────────────────────
+  spark-job:
+    build:
+      context: ..
+      dockerfile: streaming/Dockerfile
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:9092
+      TOPIC_TRADES: market.trades
+      ICEBERG_CATALOG: lake
+      TRADES_TABLE: lake.market.trades_raw
+      OHLCV_TABLE: lake.market.ohlcv_1m
+      WINDOW_DURATION: "1 minute"
+      WATERMARK_DELAY: "2 minutes"
+      STARTING_OFFSETS: earliest
+      OAUTH_ENABLED: "false"
+      CHECKPOINT_LOCATION: s3a://lakehouse/checkpoints/market-stream
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+    command:
+      - /opt/spark/bin/spark-submit
+      - --master=local[2]
+      - --conf=spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      - --conf=spark.sql.catalog.lake=org.apache.iceberg.spark.SparkCatalog
+      - --conf=spark.sql.catalog.lake.type=rest
+      - --conf=spark.sql.catalog.lake.uri=http://lakekeeper:8181/catalog
+      - --conf=spark.sql.catalog.lake.warehouse=lakehouse
+      - --conf=spark.sql.catalog.lake.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+      - --conf=spark.sql.catalog.lake.s3.endpoint=http://minio:9000
+      - --conf=spark.sql.catalog.lake.s3.path-style-access=true
+      - --conf=spark.sql.catalog.lake.s3.access-key-id=minioadmin
+      - --conf=spark.sql.catalog.lake.s3.secret-access-key=minioadmin
+      - --conf=spark.sql.defaultCatalog=lake
+      - --conf=spark.hadoop.fs.s3a.endpoint=http://minio:9000
+      - --conf=spark.hadoop.fs.s3a.path.style.access=true
+      - --conf=spark.hadoop.fs.s3a.connection.ssl.enabled=false
+      - --conf=spark.hadoop.fs.s3a.access.key=minioadmin
+      - --conf=spark.hadoop.fs.s3a.secret.key=minioadmin
+      - --conf=spark.hadoop.fs.s3a.aws.credentials.provider=org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+      - local:///opt/spark/jobs/market_stream.py
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-init:
+        condition: service_completed_successfully
+      lakekeeper-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # ── Web demo: read-only API ────────────────────────────────────────────────────
+  web-api:
+    build:
+      context: ../web/api
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"   # → http://localhost:8000  (the frontend calls this)
+    environment:
+      TRINO_HOST: trino
+      TRINO_PORT: "8080"
+      TRINO_USER: market-stream-web
+      TRINO_CATALOG: iceberg
+      CORS_ALLOW_ORIGIN: "http://localhost:8001"
+      API_RATE_LIMIT: 60/minute
+    depends_on:
+      trino:
+        condition: service_started
+
+volumes:
+  minio_data:
+  postgres_data:
+  redpanda_data:

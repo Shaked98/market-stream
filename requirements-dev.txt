@@ -1,0 +1,9 @@
+# Dev / test dependencies. Install with:  pip install -r requirements-dev.txt
+# Pulls the producer runtime deps too, so the producer unit tests can import the package.
+-r producer/requirements.txt
+
+pytest==8.3.3
+# Spark transform tests run on a local SparkSession (a JVM/Java 17 must be on PATH; the
+# tests skip themselves if Spark can't start, so the rest of the suite still runs).
+pyspark==3.5.3
+chispa==0.10.1

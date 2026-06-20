@@ -1,0 +1,46 @@
+---
+# A small Trino on this cluster so the web API has something to query. Its Iceberg REST
+# catalog points at the SAME spark-k8s Lakekeeper warehouse the streaming job writes to,
+# authenticating via Keycloak OAuth2 (the catalog `iceberg`, matching the local stack).
+#
+# The OAuth2 credential + S3 keys are injected from the SOPS-decrypted `_secrets` fact
+# (set by the secrets role) — never committed. The exact REST OAuth2 / native-S3 property
+# spellings are the thing to confirm on the first live deploy.
+
+- name: Add the Trino Helm repository
+  kubernetes.core.helm_repository:
+    name: trino
+    repo_url: "{{ trino_repo_url }}"
+  environment:
+    KUBECONFIG: /root/.kube/config
+
+- name: Install / upgrade Trino (iceberg catalog → spark-k8s Lakekeeper)
+  kubernetes.core.helm:
+    name: trino
+    chart_ref: trino/trino
+    chart_version: "{{ trino_chart_version }}"
+    release_namespace: "{{ market_stream_namespace }}"
+    create_namespace: true
+    wait: true
+    values:
+      server:
+        workers: 1
+      catalogs:
+        iceberg: |
+          connector.name=iceberg
+          iceberg.catalog.type=rest
+          iceberg.rest-catalog.uri={{ lakekeeper_uri }}
+          iceberg.rest-catalog.warehouse={{ iceberg_warehouse }}
+          iceberg.rest-catalog.security=OAUTH2
+          iceberg.rest-catalog.oauth2.server-uri={{ keycloak_token_uri }}
+          iceberg.rest-catalog.oauth2.credential={{ _secrets.lakekeeper_client_id }}:{{ _secrets.lakekeeper_client_secret }}
+          iceberg.rest-catalog.oauth2.scope={{ keycloak_scope }}
+          fs.native-s3.enabled=true
+          s3.endpoint={{ s3_endpoint }}
+          s3.region={{ s3_region }}
+          s3.path-style-access=true
+          s3.aws-access-key={{ _secrets.s3_access_key }}
+          s3.aws-secret-key={{ _secrets.s3_secret_key }}
+  environment:
+    KUBECONFIG: /root/.kube/config
+  no_log: true   # the catalog properties carry the OAuth2 credential + S3 keys

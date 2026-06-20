@@ -1,0 +1,5 @@
+# Read-only demo API. Pinned for reproducible builds.
+fastapi==0.115.2
+uvicorn[standard]==0.32.0
+trino==0.330.0
+slowapi==0.1.9

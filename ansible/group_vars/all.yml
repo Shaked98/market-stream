@@ -1,0 +1,55 @@
+---
+# market-stream deploy variables. Endpoints/versions are pinned here (the spark-k8s
+# convention) so the roles stay declarative. These workloads land on the EXISTING
+# spark-k8s cluster and write into its Lakekeeper warehouse.
+
+# ── Namespaces ──────────────────────────────────────────────────────────────────
+market_stream_namespace: "market-stream"   # producer, redpanda, trino, web API
+spark_jobs_namespace: "spark-jobs"          # reuse spark-k8s's — the streaming job runs here
+
+# ── Feature gates (mirror spark-k8s site.yml gating) ────────────────────────────
+redpanda_enabled: true
+producer_enabled: true
+streaming_enabled: true
+trino_enabled: true
+web_enabled: true
+
+# ── Images (build + push from this repo: `make push`) ───────────────────────────
+producer_image: "ghcr.io/shaked98/market-producer:latest"
+streaming_image: "ghcr.io/shaked98/spark-market-stream:3.5.3-iceberg1.7.1"
+web_api_image: "ghcr.io/shaked98/market-stream-api:latest"
+
+# ── Redpanda (Kafka API + Schema Registry) ──────────────────────────────────────
+redpanda_chart_version: "5.9.5"             # redpandadata/redpanda
+redpanda_repo_url: "https://charts.redpanda.com"
+redpanda_kafka_bootstrap: "redpanda.market-stream.svc.cluster.local:9093"
+redpanda_schema_registry_url: "http://redpanda.market-stream.svc.cluster.local:8081"
+topic_trades: "market.trades"
+topic_partitions: 3
+
+# ── Source feed (producer) ──────────────────────────────────────────────────────
+ws_url: "wss://stream.binance.com:9443/stream"
+symbols: "BTCUSDT,ETHUSDT,SOLUSDT"
+
+# ── Iceberg sink → the EXISTING spark-k8s Lakekeeper warehouse ──────────────────
+iceberg_catalog: "lake"
+iceberg_warehouse: "lakehouse"
+lakekeeper_uri: "http://lakekeeper.lakehouse.svc.cluster.local:8181/catalog"
+keycloak_token_uri: "http://keycloak.identity.svc.cluster.local:8080/realms/lakehouse/protocol/openid-connect/token"
+keycloak_scope: "lakekeeper"
+s3_bucket: "spark-k8s-lakehouse"
+s3_endpoint: "https://fsn1.your-objectstorage.com"
+s3_region: "fsn1"
+checkpoint_location: "s3a://spark-k8s-lakehouse/checkpoints/market-stream"
+
+# ── Trino (deployed here so the web API has something to query on this cluster) ──
+trino_chart_version: "1.42.2"               # trino/trino (Trino 480)
+trino_repo_url: "https://trinodb.github.io/charts"
+
+# ── Web API ─────────────────────────────────────────────────────────────────────
+# CORS is locked to the public demo origin. Set this to your Cloudflare Pages URL.
+web_cors_allow_origin: "https://market-stream.avrahamshaked.com"
+web_rate_limit: "30/minute"
+
+# ── SOPS-encrypted secrets (age private key supplied out-of-band) ───────────────
+sops_secrets_file: "{{ playbook_dir }}/secrets/secrets.sops.yaml"

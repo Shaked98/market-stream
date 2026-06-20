@@ -1,0 +1,22 @@
+---
+# Submit the streaming SparkApplication into the spark-jobs namespace the spark-k8s
+# Spark Operator already watches. The manifests are read on the Ansible controller and
+# applied remotely (so the repo doesn't need to be present on the cluster node).
+#
+# This assumes spark-k8s already created the oidc-spark / s3-credentials / ghcr-pull
+# secrets in spark-jobs (the streaming CRD references them). Confirm on first deploy.
+
+- name: Apply Spark RBAC (namespace + ServiceAccount; no-op if spark-k8s already created it)
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ item }}"
+  loop: "{{ lookup('file', playbook_dir + '/../streaming/spark-rbac.yaml') | from_yaml_all | list }}"
+  environment:
+    KUBECONFIG: /root/.kube/config
+
+- name: Submit the streaming SparkApplication (Kafka → Iceberg)
+  kubernetes.core.k8s:
+    state: present
+    definition: "{{ lookup('file', playbook_dir + '/../streaming/spark-market-stream.yaml') | from_yaml }}"
+  environment:
+    KUBECONFIG: /root/.kube/config
