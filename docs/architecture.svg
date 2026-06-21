@@ -1,71 +1,107 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 360" font-family="Segoe UI, Roboto, system-ui, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" font-family="Segoe UI, Roboto, system-ui, sans-serif">
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <marker id="arr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#58a6ff"/>
     </marker>
+    <marker id="arrm" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b949e"/>
+    </marker>
     <style>
-      .bg    { fill:#0d1117; }
-      .box   { fill:#161b22; stroke:#283041; stroke-width:1.5; rx:10; }
-      .lake  { fill:#11261a; stroke:#3fb950; stroke-width:1.5; rx:10; }
-      .title { fill:#e6edf3; font-size:15px; font-weight:600; }
-      .sub   { fill:#8b949e; font-size:11px; }
-      .h1    { fill:#e6edf3; font-size:18px; font-weight:700; }
-      .flow  { stroke:#58a6ff; stroke-width:2; fill:none; marker-end:url(#arrow); }
-      .lbl   { fill:#8b949e; font-size:10.5px; }
+      .bg     { fill:#0d1117; }
+      .box    { fill:#161b22; stroke:#283041; stroke-width:1.5; }
+      .lake   { fill:#102017; stroke:#3fb950; stroke-width:1.5; }
+      .tbl    { fill:#0d1117; stroke:#26402e; stroke-width:1; }
+      .serve  { fill:#161b22; stroke:#1f6feb; stroke-width:1.5; }
+      .h1     { fill:#e6edf3; font-size:21px; font-weight:700; }
+      .sub0   { fill:#8b949e; font-size:13px; }
+      .stage  { fill:#58a6ff; font-size:11px; font-weight:600; letter-spacing:1px; font-family:"Roboto Mono",monospace; }
+      .t      { fill:#e6edf3; font-size:15px; font-weight:600; }
+      .s      { fill:#8b949e; font-size:11.5px; }
+      .mono   { fill:#c9d1d9; font-size:11px; font-family:"Roboto Mono",monospace; }
+      .lbl    { fill:#8b949e; font-size:10.5px; font-family:"Roboto Mono",monospace; }
+      .flow   { stroke:#58a6ff; stroke-width:2; fill:none; marker-end:url(#arr); }
+      .dash   { stroke:#8b949e; stroke-width:1.6; fill:none; stroke-dasharray:5 4; marker-end:url(#arrm); }
+      .leg    { fill:#8b949e; font-size:11px; }
     </style>
   </defs>
 
-  <rect class="bg" x="0" y="0" width="1100" height="360"/>
-  <text class="h1" x="20" y="32">market-stream — event-driven market data pipeline</text>
-  <text class="sub" x="20" y="52">live stock feed → Kafka → Spark Structured Streaming → Apache Iceberg → Trino &amp; a live web demo</text>
+  <rect class="bg" x="0" y="0" width="1200" height="640"/>
+  <text class="h1"   x="45" y="44">market-stream — how the pipeline works</text>
+  <text class="sub0" x="45" y="68">a live stock quote becomes a queryable 1-minute candle, end to end</text>
 
-  <!-- main pipeline row (y 80–170) -->
-  <g>
-    <rect class="box" x="20"  y="80" width="160" height="90" rx="10"/>
-    <text class="title" x="100" y="120" text-anchor="middle">Yahoo Finance</text>
-    <text class="sub"   x="100" y="140" text-anchor="middle">polled · keyless</text>
+  <!-- stage labels -->
+  <text class="stage" x="130"  y="118" text-anchor="middle">1 · SOURCE</text>
+  <text class="stage" x="350"  y="118" text-anchor="middle">2 · INGEST</text>
+  <text class="stage" x="575"  y="118" text-anchor="middle">3 · BROKER</text>
+  <text class="stage" x="805"  y="118" text-anchor="middle">4 · STREAM PROCESS</text>
+  <text class="stage" x="1042" y="118" text-anchor="middle">5 · LAKEHOUSE</text>
 
-    <rect class="box" x="220" y="80" width="160" height="90" rx="10"/>
-    <text class="title" x="300" y="120" text-anchor="middle">Producer</text>
-    <text class="sub"   x="300" y="140" text-anchor="middle">Python · poll + backoff</text>
+  <!-- 1 source -->
+  <rect class="box" x="45" y="135" width="170" height="115" rx="12"/>
+  <text class="t" x="130" y="180" text-anchor="middle">Yahoo Finance</text>
+  <text class="s" x="130" y="203" text-anchor="middle">stock quotes</text>
+  <text class="s" x="130" y="221" text-anchor="middle">polled 3s · keyless</text>
 
-    <rect class="box" x="420" y="80" width="160" height="90" rx="10"/>
-    <text class="title" x="500" y="118" text-anchor="middle">Redpanda</text>
-    <text class="sub"   x="500" y="137" text-anchor="middle">Kafka API +</text>
-    <text class="sub"   x="500" y="151" text-anchor="middle">Schema Registry</text>
+  <!-- 2 producer -->
+  <rect class="box" x="265" y="135" width="170" height="115" rx="12"/>
+  <text class="t" x="350" y="180" text-anchor="middle">Producer</text>
+  <text class="s" x="350" y="203" text-anchor="middle">Python</text>
+  <text class="s" x="350" y="221" text-anchor="middle">validate → Avro</text>
 
-    <rect class="box" x="620" y="80" width="160" height="90" rx="10"/>
-    <text class="title" x="700" y="118" text-anchor="middle">Spark</text>
-    <text class="sub"   x="700" y="137" text-anchor="middle">Structured Streaming</text>
-    <text class="sub"   x="700" y="151" text-anchor="middle">1-min OHLCV / VWAP</text>
+  <!-- 3 redpanda -->
+  <rect class="box" x="485" y="135" width="180" height="115" rx="12"/>
+  <text class="t" x="575" y="178" text-anchor="middle">Redpanda</text>
+  <text class="s" x="575" y="200" text-anchor="middle">Kafka + Schema Registry</text>
+  <text class="mono" x="575" y="222" text-anchor="middle">topic: market.quotes</text>
 
-    <rect class="lake" x="820" y="80" width="160" height="90" rx="10"/>
-    <text class="title" x="900" y="118" text-anchor="middle">Apache Iceberg</text>
-    <text class="sub"   x="900" y="137" text-anchor="middle">Lakekeeper REST</text>
-    <text class="sub"   x="900" y="151" text-anchor="middle">+ S3 warehouse</text>
-  </g>
+  <!-- 4 spark -->
+  <rect class="box" x="715" y="135" width="180" height="115" rx="12"/>
+  <text class="t" x="805" y="178" text-anchor="middle">Spark Streaming</text>
+  <text class="s" x="805" y="200" text-anchor="middle">1-min OHLCV / VWAP</text>
+  <text class="s" x="805" y="222" text-anchor="middle">exactly-once · checkpointed</text>
 
-  <!-- consumers -->
-  <rect class="box" x="620" y="250" width="160" height="80" rx="10"/>
-  <text class="title" x="700" y="285" text-anchor="middle">Trino + Superset</text>
-  <text class="sub"   x="700" y="305" text-anchor="middle">query the lakehouse</text>
+  <!-- 5 iceberg (container with two tables) -->
+  <rect class="lake" x="925" y="135" width="235" height="195" rx="12"/>
+  <text class="t" x="1042" y="166" text-anchor="middle">Apache Iceberg</text>
+  <text class="s" x="1042" y="185" text-anchor="middle">Lakekeeper REST catalog + S3</text>
+  <rect class="tbl" x="945" y="200" width="195" height="50" rx="8"/>
+  <text class="mono" x="958" y="222">quotes_raw</text>
+  <text class="s"    x="958" y="240">every quote · append</text>
+  <rect class="tbl" x="945" y="262" width="195" height="50" rx="8"/>
+  <text class="mono" x="958" y="284">ohlcv_1m</text>
+  <text class="s"    x="958" y="302">1-min bars · MERGE upsert</text>
 
-  <rect class="box" x="820" y="250" width="160" height="80" rx="10"/>
-  <text class="title" x="900" y="280" text-anchor="middle">Web demo</text>
-  <text class="sub"   x="900" y="298" text-anchor="middle">FastAPI (read-only) +</text>
-  <text class="sub"   x="900" y="312" text-anchor="middle">Cloudflare Pages</text>
+  <!-- main flow arrows -->
+  <path class="flow" d="M215,192 H262"/>
+  <path class="flow" d="M435,192 H482"/>
+  <path class="flow" d="M665,192 H712"/>
+  <path class="flow" d="M895,192 H922"/>
+  <text class="lbl" x="459" y="184" text-anchor="middle">Avro</text>
+  <text class="lbl" x="689" y="184" text-anchor="middle">consume</text>
+  <text class="lbl" x="909" y="184" text-anchor="middle">write</text>
 
-  <!-- flows -->
-  <path class="flow" d="M180,125 H218"/>
-  <path class="flow" d="M380,125 H418"/>
-  <path class="flow" d="M580,125 H618"/>
-  <path class="flow" d="M780,125 H818"/>
-  <text class="lbl" x="399" y="116" text-anchor="middle">Avro</text>
-  <text class="lbl" x="599" y="116" text-anchor="middle">subscribe</text>
-  <text class="lbl" x="779" y="116" text-anchor="middle">append + MERGE</text>
+  <!-- serving layer -->
+  <text class="stage" x="805"  y="408" text-anchor="middle">6 · SERVE</text>
+  <rect class="serve" x="715" y="425" width="180" height="105" rx="12"/>
+  <text class="t" x="805" y="468" text-anchor="middle">Trino + Superset</text>
+  <text class="s" x="805" y="490" text-anchor="middle">ad-hoc SQL · BI</text>
+  <text class="s" x="805" y="508" text-anchor="middle">(existing lakehouse)</text>
 
-  <!-- Iceberg → Trino, Iceberg → Web -->
-  <path class="flow" d="M880,170 V210 H700 V248"/>
-  <path class="flow" d="M900,170 V248"/>
-  <text class="lbl" x="912" y="210">read API</text>
+  <rect class="serve" x="925" y="425" width="235" height="105" rx="12"/>
+  <text class="t" x="1042" y="462" text-anchor="middle">Web API → Browser</text>
+  <text class="s" x="1042" y="484" text-anchor="middle">FastAPI (read-only)</text>
+  <text class="s" x="1042" y="502" text-anchor="middle">live tape · OHLCV table · chart</text>
+
+  <!-- iceberg → serve (polled Trino reads) -->
+  <path class="flow" d="M1000,330 V378 H805 V423"/>
+  <path class="flow" d="M1075,330 V423"/>
+  <text class="lbl" x="838" y="370">Trino SELECT · polled every 2–5s</text>
+
+  <!-- optional speed-layer (Kafka → SSE) -->
+  <path class="dash" d="M575,250 V575 H1042 V532"/>
+  <text class="lbl" x="610" y="568">optional speed layer: Kafka → SSE push for a sub-second tape (not built — see README)</text>
+
+  <!-- legend -->
+  <line x1="45" y1="606" x2="80" y2="606" stroke="#58a6ff" stroke-width="2" marker-end="url(#arr)"/>
+  <text class="leg" x="88" y="610">implemented path — the “live” demo reads Iceberg via Trino, so it is near-real-time (a few seconds), not a Kafka push.</text>
 </svg>
